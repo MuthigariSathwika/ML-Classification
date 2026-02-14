@@ -1,0 +1,274 @@
+import warnings
+from pathlib import Path
+
+import joblib
+import numpy as np
+import pandas as pd
+import streamlit as st
+from sklearn.datasets import load_breast_cancer
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (
+    accuracy_score,
+    f1_score,
+    matthews_corrcoef,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
+from sklearn.model_selection import train_test_split
+from sklearn.naive_bayes import GaussianNB
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn.tree import DecisionTreeClassifier
+from xgboost import XGBClassifier
+
+warnings.filterwarnings("ignore")
+
+st.set_page_config(page_title="ML Classification Models", layout="wide")
+AVG_SCORE_COL = "Average Score"
+MODEL_DIR = Path(__file__).resolve().parent / "model"
+SCALER_FILE = "scaler.pkl"
+MODEL_FILE_MAP = {
+    "Logistic Regression": "logistic_regression.pkl",
+    "Decision Tree Classifier": "decision_tree.pkl",
+    "K-Nearest Neighbor Classifier": "knn.pkl",
+    "Naive Bayes Classifier (Gaussian)": "naive_bayes.pkl",
+    "Random Forest Classifier": "random_forest.pkl",
+    "XGBoost Classifier": "xgboost.pkl",
+}
+
+
+def evaluate_model(model, X_test, y_test, model_name):
+    y_pred = model.predict(X_test)
+
+    accuracy = accuracy_score(y_test, y_pred)
+    precision = precision_score(y_test, y_pred, average="weighted", zero_division=0)
+    recall = recall_score(y_test, y_pred, average="weighted", zero_division=0)
+    f1 = f1_score(y_test, y_pred, average="weighted", zero_division=0)
+    mcc = matthews_corrcoef(y_test, y_pred)
+
+    try:
+        y_pred_proba = model.predict_proba(X_test)[:, 1]
+        auc_score = roc_auc_score(y_test, y_pred_proba)
+    except Exception:
+        auc_score = 0.0
+
+    return {
+        "Model": model_name,
+        "Accuracy": accuracy,
+        "AUC Score": auc_score,
+        "Precision": precision,
+        "Recall": recall,
+        "F1 Score": f1,
+        "MCC Score": mcc,
+    }
+
+
+def get_model_definitions():
+    return {
+        "Logistic Regression": LogisticRegression(max_iter=1000, random_state=42),
+        "Decision Tree Classifier": DecisionTreeClassifier(
+            random_state=42,
+            max_depth=10,
+            min_samples_split=5,
+            ccp_alpha=0.0,
+        ),
+        "K-Nearest Neighbor Classifier": KNeighborsClassifier(
+            n_neighbors=5, weights="distance"
+        ),
+        "Naive Bayes Classifier (Gaussian)": GaussianNB(),
+        "Random Forest Classifier": RandomForestClassifier(
+            n_estimators=100,
+            random_state=42,
+            max_depth=15,
+            min_samples_split=5,
+            min_samples_leaf=1,
+            max_features="sqrt",
+        ),
+        "XGBoost Classifier": XGBClassifier(
+            n_estimators=100,
+            random_state=42,
+            learning_rate=0.1,
+            max_depth=6,
+            eval_metric="logloss",
+        ),
+    }
+
+
+def all_artifacts_exist():
+    return (MODEL_DIR / SCALER_FILE).exists() and all(
+        (MODEL_DIR / filename).exists() for filename in MODEL_FILE_MAP.values()
+    )
+
+
+def save_artifacts(scaler, models):
+    MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    joblib.dump(scaler, MODEL_DIR / SCALER_FILE)
+    for model_name, model in models.items():
+        joblib.dump(model, MODEL_DIR / MODEL_FILE_MAP[model_name])
+
+
+def load_artifacts():
+    scaler = joblib.load(MODEL_DIR / SCALER_FILE)
+    models = {
+        model_name: joblib.load(MODEL_DIR / filename)
+        for model_name, filename in MODEL_FILE_MAP.items()
+    }
+    return scaler, models
+
+
+@st.cache_resource
+def load_or_train_and_evaluate_models():
+    data = load_breast_cancer()
+    df = pd.DataFrame(data.data, columns=data.feature_names)
+    df["target"] = data.target
+
+    X = df.drop("target", axis=1)
+    y = df["target"]
+
+    data_source = "Loaded pre-trained .pkl models"
+
+    if all_artifacts_exist():
+        scaler, trained_models = load_artifacts()
+    else:
+        scaler = StandardScaler()
+        scaler.fit(X)
+        trained_models = get_model_definitions()
+
+        x_scaled_train = scaler.transform(X)
+        x_scaled_train = pd.DataFrame(x_scaled_train, columns=X.columns)
+
+        x_train_fit, _, y_train_fit, _ = train_test_split(
+            x_scaled_train,
+            y,
+            test_size=0.2,
+            random_state=42,
+            stratify=y,
+        )
+
+        for model in trained_models.values():
+            model.fit(x_train_fit, y_train_fit)
+
+        save_artifacts(scaler, trained_models)
+        data_source = "Artifacts were missing, so models were trained and saved as .pkl"
+
+    x_scaled = scaler.transform(X)
+    x_scaled = pd.DataFrame(x_scaled, columns=X.columns)
+
+    _, X_test, _, y_test = train_test_split(
+        x_scaled,
+        y,
+        test_size=0.2,
+        random_state=42,
+        stratify=y,
+    )
+
+    results = []
+    for model_name, model in trained_models.items():
+        result = evaluate_model(model, X_test, y_test, model_name)
+        results.append(result)
+
+    results_df = pd.DataFrame(results)
+    metric_cols = [
+        "Accuracy",
+        "AUC Score",
+        "Precision",
+        "Recall",
+        "F1 Score",
+        "MCC Score",
+    ]
+    results_df[AVG_SCORE_COL] = results_df[metric_cols].mean(axis=1)
+    best_model_name = results_df.loc[results_df[AVG_SCORE_COL].idxmax(), "Model"]
+
+    return df, X, scaler, trained_models, results_df, best_model_name, data_source
+
+
+df, X_raw, scaler, trained_models, results_df, best_model_name, data_source = (
+    load_or_train_and_evaluate_models()
+)
+
+st.title("Breast Cancer Classification - Model Evaluation Dashboard")
+st.write(
+    "This app reproduces your notebook pipeline: StandardScaler preprocessing, "
+    "6 classification models, and metric-based comparison."
+)
+st.caption(data_source)
+
+col1, col2, col3 = st.columns(3)
+col1.metric("Instances", f"{df.shape[0]}")
+col2.metric("Features", f"{X_raw.shape[1]}")
+col3.metric("Classes", "2")
+
+st.subheader("Model Performance Comparison")
+st.dataframe(results_df.sort_values(AVG_SCORE_COL, ascending=False), use_container_width=True)
+
+best_row = results_df.loc[results_df["Model"] == best_model_name].iloc[0]
+st.success(
+    f"Best overall model: {best_model_name} | Average Score: {best_row[AVG_SCORE_COL]:.4f}"
+)
+
+st.subheader("Single Prediction")
+st.write(
+    "Select a model and predict diagnosis from input features. "
+    "Prediction labels: 0 = Malignant, 1 = Benign."
+)
+
+selected_model_name = st.selectbox("Choose model", list(trained_models.keys()), index=0)
+selected_model = trained_models[selected_model_name]
+
+default_index = st.slider(
+    "Use default values from dataset row index",
+    min_value=0,
+    max_value=len(df) - 1,
+    value=0,
+)
+
+default_values = X_raw.iloc[default_index]
+
+with st.expander("Edit feature values", expanded=False):
+    input_values = {}
+    left_col, right_col = st.columns(2)
+    split_point = int(np.ceil(len(X_raw.columns) / 2))
+    left_features = X_raw.columns[:split_point]
+    right_features = X_raw.columns[split_point:]
+
+    for feature in left_features:
+        min_val = float(X_raw[feature].min())
+        max_val = float(X_raw[feature].max())
+        default_val = float(default_values[feature])
+        input_values[feature] = left_col.number_input(
+            feature,
+            min_value=min_val,
+            max_value=max_val,
+            value=default_val,
+        )
+
+    for feature in right_features:
+        min_val = float(X_raw[feature].min())
+        max_val = float(X_raw[feature].max())
+        default_val = float(default_values[feature])
+        input_values[feature] = right_col.number_input(
+            feature,
+            min_value=min_val,
+            max_value=max_val,
+            value=default_val,
+        )
+
+if st.button("Predict"):
+    input_df = pd.DataFrame([input_values], columns=X_raw.columns)
+    input_scaled = scaler.transform(input_df)
+
+    pred = int(selected_model.predict(input_scaled)[0])
+    label = "Benign" if pred == 1 else "Malignant"
+
+    st.write(f"Prediction: **{label} ({pred})**")
+
+    if hasattr(selected_model, "predict_proba"):
+        proba = selected_model.predict_proba(input_scaled)[0]
+        st.write(
+            f"Class probabilities → Malignant (0): {proba[0]:.4f}, "
+            f"Benign (1): {proba[1]:.4f}"
+        )
+
+st.caption("Built for Streamlit Community Cloud deployment.")
