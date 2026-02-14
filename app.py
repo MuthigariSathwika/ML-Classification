@@ -194,7 +194,7 @@ df, X_raw, scaler, trained_models, results_df, best_model_name, data_source = (
 
 st.title("Breast Cancer Classification - Model Evaluation Dashboard")
 st.write(
-    "This app reproduces your notebook pipeline: StandardScaler preprocessing, "
+    "This app reproduces notebook pipeline: StandardScaler preprocessing, "
     "6 classification models, and metric-based comparison."
 )
 st.caption(data_source)
