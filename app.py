@@ -203,7 +203,7 @@ col1, col2, col3 = st.columns(3)
 col1.metric("Instances", f"{df.shape[0]}")
 col2.metric("Features", f"{X_raw.shape[1]}")
 # a. Dataset upload option [1 mark]
-st.subheader("📤 a) Upload Custom Test Data (CSV)")
+st.subheader("📤 Upload Custom Test Data (CSV)")
 uploaded_file = st.file_uploader(
     "Upload a CSV file with test data (optional - demo built-in data used by default)",
     type=["csv"],
@@ -250,8 +250,8 @@ st.success(
     f"Best overall model: {best_model_name} | Average Score: {best_row[AVG_SCORE_COL]:.4f}"
 )
 
-# b. Model selection dropdown [1 mark]
-st.subheader("🔍 b) Select Model for Detailed Evaluation")
+# b. Model selection dropdown
+st.subheader("Select Model for Detailed Evaluation")
 selected_eval_model = st.selectbox(
     "Choose a model to evaluate on test data",
     list(trained_models.keys()),
@@ -268,8 +268,8 @@ y_pred_proba_eval = (
     else None
 )
 
-# c. Display of evaluation metrics [1 mark]
-st.subheader("📊 c) Evaluation Metrics")
+# c. Display of evaluation metrics
+st.subheader("📊 Evaluation Metrics")
 metric_col1, metric_col2, metric_col3 = st.columns(3)
 acc = accuracy_score(y_test_eval, y_pred_eval)
 prec = precision_score(y_test_eval, y_pred_eval, average="weighted", zero_division=0)
@@ -281,13 +281,14 @@ metric_col3.metric("Recall", f"{rec:.4f}")
 metric_col4, metric_col5, metric_col6 = st.columns(3)
 f1_val = f1_score(y_test_eval, y_pred_eval, average="weighted", zero_division=0)
 mcc_val = matthews_corrcoef(y_test_eval, y_pred_eval)
-auc_val = roc_auc_score(y_test_eval, y_pred_proba_eval) if y_pred_proba_eval is not None else 0.0
+auc_val = roc_auc_score(y_test_eval, y_pred_proba_eval) 
+if y_pred_proba_eval is not None else 0.0
 metric_col4.metric("F1 Score", f"{f1_val:.4f}")
 metric_col5.metric("MCC", f"{mcc_val:.4f}")
 metric_col6.metric("AUC", f"{auc_val:.4f}")
 
 # d. Confusion matrix or classification report [1 mark]
-st.subheader("📋 d) Confusion Matrix & Classification Report")
+st.subheader("📋 Confusion Matrix & Classification Report")
 tab1, tab2 = st.tabs(["Confusion Matrix", "Classification Report"])
 
 with tab1:
@@ -316,70 +317,3 @@ with tab2:
     )
     report_df = pd.DataFrame(report).transpose()
     st.dataframe(report_df.style.format("{:.4f}"), use_container_width=True)
-    st.success(f"Best overall model: {best_model_name} | Average Score: {best_row[AVG_SCORE_COL]:.4f}")
-
-st.divider()
-st.subheader("🎯 Single Sample Prediction (Interactive)")
-st.write(
-    "Select a model and predict diagnosis from input features. "
-    "Prediction labels: 0 = Malignant, 1 = Benign."
-)
-
-selected_model_name = st.selectbox("Choose model", list(trained_models.keys()), index=0, key="pred_model_select")
-selected_model = trained_models[selected_model_name]
-
-default_index = st.slider(
-    "Use default values from dataset row index",
-    min_value=0,
-    max_value=len(df) - 1,
-    value=0,
-)
-
-default_values = X_raw.iloc[default_index]
-
-with st.expander("Edit feature values", expanded=False):
-    input_values = {}
-    left_col, right_col = st.columns(2)
-    split_point = int(np.ceil(len(X_raw.columns) / 2))
-    left_features = X_raw.columns[:split_point]
-    right_features = X_raw.columns[split_point:]
-
-    for feature in left_features:
-        min_val = float(X_raw[feature].min())
-        max_val = float(X_raw[feature].max())
-        default_val = float(default_values[feature])
-        input_values[feature] = left_col.number_input(
-            feature,
-            min_value=min_val,
-            max_value=max_val,
-            value=default_val,
-        )
-
-    for feature in right_features:
-        min_val = float(X_raw[feature].min())
-        max_val = float(X_raw[feature].max())
-        default_val = float(default_values[feature])
-        input_values[feature] = right_col.number_input(
-            feature,
-            min_value=min_val,
-            max_value=max_val,
-            value=default_val,
-        )
-
-if st.button("Predict"):
-    input_df = pd.DataFrame([input_values], columns=X_raw.columns)
-    input_scaled = scaler.transform(input_df)
-
-    pred = int(selected_model.predict(input_scaled)[0])
-    label = "Benign" if pred == 1 else "Malignant"
-
-    st.write(f"Prediction: **{label} ({pred})**")
-
-    if hasattr(selected_model, "predict_proba"):
-        proba = selected_model.predict_proba(input_scaled)[0]
-        st.write(
-            f"Class probabilities → Malignant (0): {proba[0]:.4f}, "
-            f"Benign (1): {proba[1]:.4f}"
-        )
-
-st.caption("Built for Streamlit Community Cloud deployment.")
