@@ -315,9 +315,8 @@ with tab2:
         output_dict=True,
     )
     report_df = pd.DataFrame(report).transpose()
-    st.dataframe(report_df.style.format("{:.4f}"), use_container_width=Truest.success(
-    f"Best overall model: {best_model_name} | Average Score: {best_row[AVG_SCORE_COL]:.4f}"
-)
+    st.dataframe(report_df.style.format("{:.4f}"), use_container_width=True)
+    st.success(f"Best overall model: {best_model_name} | Average Score: {best_row[AVG_SCORE_COL]:.4f}")
 
 st.divider()
 st.subheader("🎯 Single Sample Prediction (Interactive)")
