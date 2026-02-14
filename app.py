@@ -281,8 +281,7 @@ metric_col3.metric("Recall", f"{rec:.4f}")
 metric_col4, metric_col5, metric_col6 = st.columns(3)
 f1_val = f1_score(y_test_eval, y_pred_eval, average="weighted", zero_division=0)
 mcc_val = matthews_corrcoef(y_test_eval, y_pred_eval)
-auc_val = roc_auc_score(y_test_eval, y_pred_proba_eval) 
-if y_pred_proba_eval is not None else 0.0
+auc_val = roc_auc_score(y_test_eval, y_pred_proba_eval) if y_pred_proba_eval is not None else 0.0
 metric_col4.metric("F1 Score", f"{f1_val:.4f}")
 metric_col5.metric("MCC", f"{mcc_val:.4f}")
 metric_col6.metric("AUC", f"{auc_val:.4f}")
