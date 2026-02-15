@@ -202,8 +202,7 @@ st.caption(data_source)
 col1, col2, col3 = st.columns(3)
 col1.metric("Instances", f"{df.shape[0]}")
 col2.metric("Features", f"{X_raw.shape[1]}")
-# a. Dataset upload option [1 mark]
-st.subheader("📤 Upload Custom Test Data (CSV)")
+# a. Dataset download & upload option
 
 # Provide test data download option
 test_data_path = Path(__file__).resolve().parent / "test_data.csv"
@@ -217,8 +216,9 @@ if test_data_path.exists():
             help="Download the test dataset used in model evaluation"
         )
 
+st.subheader("📤 Upload Custom Test Data (CSV)")        
 uploaded_file = st.file_uploader(
-    "Upload a CSV file with test data (optional - demo built-in data used by default)",
+    "Upload a CSV file with test data (optional - demo built-in with test data)",
     type=["csv"],
     help="CSV must have same 30 features as Breast Cancer dataset + 'target' column",
 )
