@@ -204,6 +204,19 @@ col1.metric("Instances", f"{df.shape[0]}")
 col2.metric("Features", f"{X_raw.shape[1]}")
 # a. Dataset upload option [1 mark]
 st.subheader("📤 Upload Custom Test Data (CSV)")
+
+# Provide test data download option
+test_data_path = Path(__file__).resolve().parent / "test_data.csv"
+if test_data_path.exists():
+    with open(test_data_path, "rb") as f:
+        st.download_button(
+            label="📥 Download Test Data (CSV)",
+            data=f.read(),
+            file_name="test_data.csv",
+            mime="text/csv",
+            help="Download the test dataset used in model evaluation"
+        )
+
 uploaded_file = st.file_uploader(
     "Upload a CSV file with test data (optional - demo built-in data used by default)",
     type=["csv"],
